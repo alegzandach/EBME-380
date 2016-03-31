@@ -8,9 +8,9 @@ int * newPitches;
 int outputPin;
 
 void setup(){
-  Serial.begin(31250);
+  Serial.begin(31250);  // MIDI sends data at 31250 bps
   newPitches = initPitches();
-  outputPin = 0; //TODO set correct output pin
+  outputPin = 13; //13 should be DAC1
 }
 
 void loop() {
@@ -18,21 +18,20 @@ void loop() {
 }
 
 void checkMIDI(){
-  if (Serial.available()){
-    commandByte = Serial.read();//read first byte
-    noteByte = Serial.read();//read next byte
-    velocityByte = Serial.read();//read final byte
+  if (Serial.available() > 2){
+    commandByte = Serial.read();  //read first byte
+    noteByte = Serial.read(); //read next byte
+    velocityByte = Serial.read(); //read final byte
   
     // if command byte = 1000xxxx, turn note off
     // if command byte  = 1001xxxx, turn on note
-    if (bitRead(commandByte,0) == 1 && bitRead(commandByte,1) == 0 && bitRead(commandByte,2) == 0 && bitRead(commandByte,3) == 0) {
+    if (bitRead(commandByte,7) == 1 && bitRead(commandByte,6) == 0 && bitRead(commandByte,5) == 0 && bitRead(commandByte,4) == 0) {
       noTone(outputPin);
-    } else if (bitRead(commandByte,0) == 1 && bitRead(commandByte,1) == 0 && bitRead(commandByte,2) == 0 && bitRead(commandByte,3) == 1) {
+    } else if (bitRead(commandByte,7) == 1 && bitRead(commandByte,6) == 0 && bitRead(commandByte,5) == 0 && bitRead(commandByte,4) == 1) {
       int freq = newPitches[noteByte];
       tone(outputPin, freq);
     }
   }
-    //while (Serial.available() > 2);//when at least three bytes available //what does this line do?
 }
 
 /*
