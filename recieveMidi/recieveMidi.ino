@@ -1,5 +1,8 @@
 #include "pitches.h"
 
+#define MAX_DURATION 60000  //max held note time of 60 seconds
+#define OUT_PIN 8
+
 byte commandByte;
 byte noteByte;
 byte velocityByte;
@@ -8,9 +11,9 @@ int * newPitches;
 int outputPin;
 
 void setup(){
-  Serial.begin(31250);  // MIDI sends data at 31250 bps
+  Serial1.begin(31250);  // MIDI sends data at 31250 bps
   newPitches = initPitches();
-  outputPin = 13; //13 should be DAC1
+  outputPin = OUT_PIN;
 }
 
 void loop() {
@@ -18,18 +21,19 @@ void loop() {
 }
 
 void checkMIDI(){
-  if (Serial.available() > 2){
-    commandByte = Serial.read();  //read first byte
-    noteByte = Serial.read(); //read next byte
-    velocityByte = Serial.read(); //read final byte
   
+  if (Serial1.available() > 2){
+    commandByte = Serial1.read();  //read first byte
+    noteByte = Serial1.read(); //read next byte
+    velocityByte = Serial1.read(); //read final byte
+
     // if command byte = 1000xxxx, turn note off
     // if command byte  = 1001xxxx, turn on note
     if (bitRead(commandByte,7) == 1 && bitRead(commandByte,6) == 0 && bitRead(commandByte,5) == 0 && bitRead(commandByte,4) == 0) {
       noTone(outputPin);
     } else if (bitRead(commandByte,7) == 1 && bitRead(commandByte,6) == 0 && bitRead(commandByte,5) == 0 && bitRead(commandByte,4) == 1) {
       int freq = newPitches[noteByte];
-      tone(outputPin, freq);
+      tone(outputPin, freq, MAX_DURATION);
     }
   }
 }
@@ -175,5 +179,84 @@ int * initPitches() {
   ret[123] = NOTE_A8;
   ret[126] = NOTE_B8;
   
+}
+
+/*
+Tone generator
+Since it turns out the Due does not have an implementation of tone() or noTone()
+v1  use timer, and toggle any digital pin in ISR
+   funky duration from arduino version
+   TODO use FindMckDivisor?
+   timer selected will preclude using associated pins for PWM etc.
+    could also do timer/pwm hardware toggle where caller controls duration
+*/
+
+
+// timers TC0 TC1 TC2   channels 0-2 ids 0-2  3-5  6-8     AB 0 1
+// use TC1 channel 0
+#define TONE_TIMER TC1
+#define TONE_CHNL 0
+#define TONE_IRQ TC3_IRQn
+
+// TIMER_CLOCK4   84MHz/128 with 16 bit counter give 10 Hz to 656KHz
+//  piano 27Hz to 4KHz
+
+static uint8_t pinEnabled[PINS_COUNT];
+static uint8_t TCChanEnabled = 0;
+static boolean pin_state = false ;
+static Tc *chTC = TONE_TIMER;
+static uint32_t chNo = TONE_CHNL;
+
+volatile static int32_t toggle_count;
+static uint32_t tone_pin;
+
+// frequency (in hertz) and duration (in milliseconds).
+
+void tone(uint32_t ulPin, uint32_t frequency, int32_t duration)
+{
+    const uint32_t rc = VARIANT_MCK / 256 / frequency;
+    tone_pin = ulPin;
+    toggle_count = 0;  // strange  wipe out previous duration
+    if (duration > 0 ) toggle_count = 2 * frequency * duration / 1000;
+    else toggle_count = -1;
+
+    if (!TCChanEnabled) {
+      pmc_set_writeprotect(false);
+      pmc_enable_periph_clk((uint32_t)TONE_IRQ);
+      TC_Configure(chTC, chNo,
+        TC_CMR_TCCLKS_TIMER_CLOCK4 |
+        TC_CMR_WAVE |         // Waveform mode
+        TC_CMR_WAVSEL_UP_RC ); // Counter running up and reset when equals to RC
+  
+      chTC->TC_CHANNEL[chNo].TC_IER=TC_IER_CPCS;  // RC compare interrupt
+      chTC->TC_CHANNEL[chNo].TC_IDR=~TC_IER_CPCS;
+      NVIC_EnableIRQ(TONE_IRQ);
+                         TCChanEnabled = 1;
+    }
+    if (!pinEnabled[ulPin]) {
+      pinMode(ulPin, OUTPUT);
+      pinEnabled[ulPin] = 1;
+    }
+    TC_Stop(chTC, chNo);
+                TC_SetRC(chTC, chNo, rc);    // set frequency
+    TC_Start(chTC, chNo);
+}
+
+void noTone(uint32_t ulPin)
+{
+  TC_Stop(chTC, chNo);  // stop timer
+  digitalWrite(ulPin,LOW);  // no signal on pin
+}
+
+// timer ISR  TC1 ch 0
+void TC3_Handler ( void ) {
+  TC_GetStatus(TC1, 0);
+  if (toggle_count != 0){
+    // toggle pin  TODO  better
+    digitalWrite(tone_pin,pin_state= !pin_state);
+    if (toggle_count > 0) toggle_count--;
+  } else {
+    noTone(tone_pin);
+  }
 }
 
