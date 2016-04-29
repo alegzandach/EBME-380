@@ -2,29 +2,18 @@
 
 #define MAX_DURATION 60000  //max held note time of 60 seconds
 #define OUT_PIN 8
-#define STATE_NO_NOTE 0
-#define STATE_NOTE_ON 1
-#define STATE_PLAYING 2
 
-//byte commandByte;
-//byte noteByte;
-//byte velocityByte;
-byte command;
+byte commandByte;
+byte noteByte;
+byte velocityByte;
 boolean isPlaying;
 int * newPitches;
-int state;
-byte readByte;
-byte channel;
+int outputPin;
 
 void setup(){
-  Serial1.begin(31250);  // MIDI sends data at 31250 bps, Serial 1 receives signal on RX1 (pin 19 on Due)
-  Serial.begin(9600);
+  Serial1.begin(31250);  // MIDI sends data at 31250 bps
   newPitches = initPitches();
-  state = STATE_NO_NOTE;
-
-  Serial.println("Hello World!");
-
-  delay(100);
+  outputPin = OUT_PIN;
 }
 
 void loop() {
@@ -33,76 +22,19 @@ void loop() {
 
 void checkMIDI(){
   
-  if (Serial1.available() > 0){
-
-    readByte = Serial1.read();
-
-    if(readByte > 0) {
-      Serial.print("Read: ");
-      Serial.println(readByte, BIN);
-    }
-
-    if(readByte == 0xf8) {
-      Serial.println("is clock byte: tic");
-    }
-
-    if(state == STATE_NO_NOTE) {
-      // if there not a note playing, then this could be a command byte
-      command = readByte & B11110000;
-      channel = readByte & B00001111;
-      if(readByte > 0) {
-        Serial.print("Command: ");
-        Serial.println(command, BIN);
-        Serial.print("Channel: ");
-        Serial.println(channel, BIN);
-      }
-      if (command == 144 && channel == 0) { //on
-        state = STATE_NOTE_ON;
-      } else if (command == 128) { //off
-        noTone(OUT_PIN);
-        Serial.println("Stopping");
-      }
-      
-    } else if (state == STATE_NOTE_ON) {
-      Serial.print("Note: ");
-      Serial.println(readByte);
-      int freq = newPitches[readByte];
-      tone(OUT_PIN, freq, MAX_DURATION);
-      Serial.println("Playing!\n");
-      state = STATE_PLAYING;
-      
-    } else if (state == STATE_PLAYING) {
-      //ignore velocity for now
-      Serial.print("Velocity: ");
-      Serial.println(command, BIN);
-      state = STATE_NO_NOTE;
-    }
-    
-    /*
+  if (Serial1.available() > 2){
     commandByte = Serial1.read();  //read first byte
     noteByte = Serial1.read(); //read next byte
     velocityByte = Serial1.read(); //read final byte
 
-    Serial.print("bytes availible:\n");
-    Serial.print("command: ");
-    Serial.print(commandByte, BIN);
-    Serial.print("\n");
-    Serial.print("note: ");
-    Serial.print(noteByte, BIN);
-    Serial.print("\n");
-
     // if command byte = 1000xxxx, turn note off
     // if command byte  = 1001xxxx, turn on note
-    command = commandByte & B11110000;
-    if (command == B10000000) {
+    if (bitRead(commandByte,7) == 1 && bitRead(commandByte,6) == 0 && bitRead(commandByte,5) == 0 && bitRead(commandByte,4) == 0) {
       noTone(outputPin);
-      Serial.print("Stopping Play\n");
-    } else if (command == B10010000) {
+    } else if (bitRead(commandByte,7) == 1 && bitRead(commandByte,6) == 0 && bitRead(commandByte,5) == 0 && bitRead(commandByte,4) == 1) {
       int freq = newPitches[noteByte];
       tone(outputPin, freq, MAX_DURATION);
-      Serial.print("Playing!\n");
     }
-    */
   }
 }
 
@@ -327,4 +259,3 @@ void TC3_Handler ( void ) {
     noTone(tone_pin);
   }
 }
-
