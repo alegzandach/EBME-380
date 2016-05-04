@@ -17,7 +17,7 @@ byte readByte;
 byte channel;
 
 void setup(){
-  Serial1.begin(23000);  // MIDI sends data at 31250 bps, Serial 1 receives signal on RX1 (pin 19 on Due)
+  Serial1.begin(31250);  // MIDI sends data at 31250 bps, Serial 1 receives signal on RX1 (pin 19 on Due)
   Serial.begin(9600);
   
   newPitches[0] = NOTE_C_2 / 4;  //dividing a frequency by 2 lowers a pitch by an octave; this pitch is C_4
@@ -165,8 +165,8 @@ void loop() {
     readByte = Serial1.read();
 
     if(readByte > 0) {
-      Serial.print("Read: ");
-      Serial.println(readByte, BIN);
+      //Serial.print("Read: ");
+      //Serial.println(readByte, BIN);
     }
 
     if(readByte == 0xf8) {
@@ -178,14 +178,14 @@ void loop() {
       command = readByte & B11110000;
       channel = readByte & B00001111;
       if(readByte > 0) {
-        Serial.print("Command: ");
-        Serial.println(command, BIN);
-        Serial.print("Channel: ");
-        Serial.println(channel, BIN);
+       //erial.print("Command: ");
+        //Serial.println(command, BIN);
+        //Serial.print("Channel: ");
+        //Serial.println(channel, BIN);
       }
       if (command == B10010000) { //on
         state = STATE_NOTE_ON;
-      } else if (command == 128) { //off
+      } else if (command == B10000000) { //off
         Serial.println("Stopping");
       }
       
@@ -201,7 +201,7 @@ void loop() {
     } else if (state == STATE_PLAYING) {
       //ignore velocity for now
       Serial.print("Velocity: ");
-      Serial.println(command, BIN);
+      Serial.println(readByte, BIN);
       state = STATE_NO_NOTE;
     }
   }

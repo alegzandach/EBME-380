@@ -3,7 +3,7 @@ byte noteByte;
 byte velocityByte;
 
 void setup(){
-  Serial1.begin(60);
+  Serial1.begin(31250);
   Serial.begin(9600);
 }
 
@@ -13,12 +13,14 @@ void checkMIDI(){
       commandByte = Serial1.read();//read first byte
       noteByte = Serial1.read();//read next byte
       velocityByte = Serial1.read();//read final byte
+      if (commandByte & B11110000 == B10010000) {
       Serial.print("Command: ");
       Serial.println(commandByte, BIN);
       Serial.print("Note: ");
       Serial.println(noteByte, BIN);
       Serial.print("Velocity: ");
       Serial.println(velocityByte, BIN);
+      }
       
     }
   }

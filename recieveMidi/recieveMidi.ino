@@ -5,22 +5,156 @@
 #define STATE_NO_NOTE 0
 #define STATE_NOTE_ON 1
 #define STATE_PLAYING 2
+#define STATE_TURNING_OFF 3
 
 //byte commandByte;
 //byte noteByte;
 //byte velocityByte;
 byte command;
-boolean isPlaying;
-int * newPitches;
+int curNote;
+int newPitches[128];
 int state;
+int freq;
 byte readByte;
 byte channel;
 
 void setup(){
   Serial1.begin(31250);  // MIDI sends data at 31250 bps, Serial 1 receives signal on RX1 (pin 19 on Due)
   Serial.begin(9600);
-  newPitches = initPitches();
+
+  newPitches[0] = NOTE_C_2 / 4;  //dividing a frequency by 2 lowers a pitch by an octave; this pitch is C_4
+  newPitches[2] = NOTE_D_2 / 4;
+  newPitches[4] = NOTE_E_2 / 4;
+  newPitches[5] = NOTE_G_2 / 4;
+  newPitches[7] = NOTE_A_2 / 4;
+  newPitches[9] = NOTE_C_2 / 2; //C_3
+  newPitches[11] = NOTE_D_2 / 2;
+  newPitches[12] = NOTE_E_2 / 2;
+  newPitches[14] = NOTE_G_2 / 2;
+  newPitches[16] = NOTE_A_2 / 2;  //lower pitches than usually handled in MIDI
+  newPitches[17] = NOTE_C_2;
+  newPitches[19] = NOTE_D_2;
+  newPitches[21] = NOTE_E_2;
+  newPitches[23] = NOTE_G_2;
+  newPitches[24] = NOTE_A_2;
+  newPitches[26] = NOTE_C_1;
+  newPitches[28] = NOTE_D_1;
+  newPitches[29] = NOTE_E_1;
+  newPitches[31] = NOTE_G_1;
+  newPitches[33] = NOTE_A_1;
+  newPitches[35] = NOTE_C0;
+  newPitches[36] = NOTE_D0;
+  newPitches[38] = NOTE_E0;
+  newPitches[40] = NOTE_G0;
+  newPitches[41] = NOTE_A0;
+  newPitches[43] = NOTE_C1;
+  newPitches[45] = NOTE_D1;
+  newPitches[47] = NOTE_E1;
+  newPitches[48] = NOTE_G1;
+  newPitches[50] = NOTE_A1;
+  newPitches[52] = NOTE_C2;
+  newPitches[53] = NOTE_D2;
+  newPitches[55] = NOTE_E2;
+  newPitches[57] = NOTE_G2;
+  newPitches[59] = NOTE_A2;
+  newPitches[60] = NOTE_C3;  // Middle C is still middle C
+  newPitches[62] = NOTE_D3;
+  newPitches[64] = NOTE_E3;
+  newPitches[65] = NOTE_G3;
+  newPitches[67] = NOTE_A3;
+  newPitches[69] = NOTE_C4;
+  newPitches[71] = NOTE_D4;
+  newPitches[72] = NOTE_E4;
+  newPitches[74] = NOTE_G4;
+  newPitches[76] = NOTE_A4;
+  newPitches[77] = NOTE_C5;
+  newPitches[79] = NOTE_D5;
+  newPitches[81] = NOTE_E5;
+  newPitches[83] = NOTE_G5;
+  newPitches[84] = NOTE_A5;
+  newPitches[86] = NOTE_C6;
+  newPitches[88] = NOTE_D6;
+  newPitches[90] = NOTE_E6;
+  newPitches[91] = NOTE_G6;
+  newPitches[93] = NOTE_A6;
+  newPitches[95] = NOTE_C7;
+  newPitches[96] = NOTE_D7;
+  newPitches[98] = NOTE_E7;
+  newPitches[100] = NOTE_G7;
+  newPitches[101] = NOTE_A7;
+  newPitches[103] = NOTE_C8;
+  newPitches[105] = NOTE_D8;
+  newPitches[107] = NOTE_E8;
+  newPitches[108] = NOTE_G8;
+  newPitches[110] = NOTE_A8;
+  newPitches[112] = NOTE_C8 * 2;  //higher than MIDI's usual range, doubling the frequency raises the note by an octave
+  newPitches[113] = NOTE_D8 * 2;
+  newPitches[115] = NOTE_E8 * 2;
+  newPitches[117] = NOTE_G8 * 2;
+  newPitches[119] = NOTE_A8 * 2;
+  newPitches[120] = NOTE_C8 * 4; //another octave higher
+  newPitches[122] = NOTE_D8 * 4;
+  newPitches[124] = NOTE_E8 * 4;
+  newPitches[125] = NOTE_G8 * 4;
+  newPitches[127] = NOTE_A8 * 4;
+
+  //black keys
+  newPitches[1] = NOTE_G_1;
+  newPitches[3] = NOTE_A_1;
+  newPitches[6] = NOTE_B_1;
+  newPitches[8] = NOTE_D_1;
+  newPitches[10] = NOTE_E_1;
+  newPitches[13] = NOTE_G_1;
+  newPitches[15] = NOTE_A_1;
+  newPitches[18] = NOTE_B_1;
+  newPitches[20] = NOTE_D0;
+  newPitches[22] = NOTE_E0;
+  newPitches[25] = NOTE_G0;
+  newPitches[27] = NOTE_A0;
+  newPitches[30] = NOTE_B0;
+  newPitches[32] = NOTE_D1;
+  newPitches[34] = NOTE_E1;
+  newPitches[37] = NOTE_G1;
+  newPitches[39] = NOTE_A1;
+  newPitches[42] = NOTE_B1;
+  newPitches[44] = NOTE_D2;
+  newPitches[46] = NOTE_E2;
+  newPitches[49] = NOTE_G2;
+  newPitches[51] = NOTE_A2;
+  newPitches[54] = NOTE_B2;
+  newPitches[56] = NOTE_D3;
+  newPitches[58] = NOTE_E3;
+  newPitches[61] = NOTE_G3; // Middle C#
+  newPitches[63] = NOTE_A3;
+  newPitches[66] = NOTE_B3;
+  newPitches[68] = NOTE_D4;
+  newPitches[70] = NOTE_E4;
+  newPitches[73] = NOTE_G4;
+  newPitches[75] = NOTE_A4;
+  newPitches[78] = NOTE_B4;
+  newPitches[80] = NOTE_D5;
+  newPitches[82] = NOTE_E5;
+  newPitches[85] = NOTE_G5;
+  newPitches[87] = NOTE_A5;
+  newPitches[90] = NOTE_B5;
+  newPitches[92] = NOTE_D6;
+  newPitches[94] = NOTE_E6;
+  newPitches[97] = NOTE_G6;
+  newPitches[99] = NOTE_A6;
+  newPitches[102] = NOTE_B6;
+  newPitches[104] = NOTE_D7;
+  newPitches[106] = NOTE_E7;
+  newPitches[109] = NOTE_G7;
+  newPitches[111] = NOTE_A7;
+  newPitches[114] = NOTE_B7;
+  newPitches[116] = NOTE_E8;
+  newPitches[118] = NOTE_D8;
+  newPitches[121] = NOTE_G8;
+  newPitches[123] = NOTE_A8;
+  newPitches[126] = NOTE_B8;
+  
   state = STATE_NO_NOTE;
+  curNote = -1;
 
   Serial.println("Hello World!");
 
@@ -50,203 +184,43 @@ void checkMIDI(){
       // if there not a note playing, then this could be a command byte
       command = readByte & B11110000;
       channel = readByte & B00001111;
-      if(readByte > 0) {
-        Serial.print("Command: ");
-        Serial.println(command, BIN);
-        Serial.print("Channel: ");
-        Serial.println(channel, BIN);
-      }
-      if (command == 144 && channel == 0) { //on
+      if (command == B10010000) { //on
         state = STATE_NOTE_ON;
       } else if (command == 128) { //off
-        noTone(OUT_PIN);
         Serial.println("Stopping");
+        state = STATE_TURNING_OFF;
       }
       
     } else if (state == STATE_NOTE_ON) {
       Serial.print("Note: ");
       Serial.println(readByte);
-      int freq = newPitches[readByte];
-      tone(OUT_PIN, freq, MAX_DURATION);
-      Serial.println("Playing!\n");
+      if (readByte < 128 && readByte > -1) {
+        freq = newPitches[readByte];
+        tone(OUT_PIN, freq, MAX_DURATION);
+        curNote = readByte;
+        Serial.print("Playing Frequency: ");
+        Serial.println(freq);
+      } else {
+        Serial.println("Bad Note, not playing.");
+      }
       state = STATE_PLAYING;
       
-    } else if (state == STATE_PLAYING) {
+    }else if (state == STATE_PLAYING) {
       //ignore velocity for now
       Serial.print("Velocity: ");
       Serial.println(command, BIN);
       state = STATE_NO_NOTE;
+    } else if( state == STATE_TURNING_OFF) {
+      // turn off the note if it is the current one
+      if (readByte == curNote) {
+        noTone(OUT_PIN);
+        curNote = -1;
+        state = STATE_PLAYING;
+      } else {
+        state = STATE_NO_NOTE;
+      }
     }
-    
-    /*
-    commandByte = Serial1.read();  //read first byte
-    noteByte = Serial1.read(); //read next byte
-    velocityByte = Serial1.read(); //read final byte
-
-    Serial.print("bytes availible:\n");
-    Serial.print("command: ");
-    Serial.print(commandByte, BIN);
-    Serial.print("\n");
-    Serial.print("note: ");
-    Serial.print(noteByte, BIN);
-    Serial.print("\n");
-
-    // if command byte = 1000xxxx, turn note off
-    // if command byte  = 1001xxxx, turn on note
-    command = commandByte & B11110000;
-    if (command == B10000000) {
-      noTone(outputPin);
-      Serial.print("Stopping Play\n");
-    } else if (command == B10010000) {
-      int freq = newPitches[noteByte];
-      tone(outputPin, freq, MAX_DURATION);
-      Serial.print("Playing!\n");
-    }
-    */
   }
-}
-
-/*
- * Returns an array of integers representing the reassigned frequency for each MIDI note
- */
-int * initPitches() {
-  int ret[128];
-
-  //black keys
-
-  //or just use brute force
-  //white keys
-  ret[0] = NOTE_C_2 / 4;  //dividing a frequency by 2 lowers a pitch by an octave; this pitch is C_4
-  ret[2] = NOTE_D_2 / 4;
-  ret[4] = NOTE_E_2 / 4;
-  ret[5] = NOTE_G_2 / 4;
-  ret[7] = NOTE_A_2 / 4;
-  ret[9] = NOTE_C_2 / 2; //C_3
-  ret[11] = NOTE_D_2 / 2;
-  ret[12] = NOTE_E_2 / 2;
-  ret[14] = NOTE_G_2 / 2;
-  ret[16] = NOTE_A_2 / 2;  //lower pitches than usually handled in MIDI
-  ret[17] = NOTE_C_2;
-  ret[19] = NOTE_D_2;
-  ret[21] = NOTE_E_2;
-  ret[23] = NOTE_G_2;
-  ret[24] = NOTE_A_2;
-  ret[26] = NOTE_C_1;
-  ret[28] = NOTE_D_1;
-  ret[29] = NOTE_E_1;
-  ret[31] = NOTE_G_1;
-  ret[33] = NOTE_A_1;
-  ret[35] = NOTE_C0;
-  ret[36] = NOTE_D0;
-  ret[38] = NOTE_E0;
-  ret[40] = NOTE_G0;
-  ret[41] = NOTE_A0;
-  ret[43] = NOTE_C1;
-  ret[45] = NOTE_D1;
-  ret[47] = NOTE_E1;
-  ret[48] = NOTE_G1;
-  ret[50] = NOTE_A1;
-  ret[52] = NOTE_C2;
-  ret[53] = NOTE_D2;
-  ret[55] = NOTE_E2;
-  ret[57] = NOTE_G2;
-  ret[59] = NOTE_A2;
-  ret[60] = NOTE_C3;  // Middle C is still middle C
-  ret[62] = NOTE_D3;
-  ret[64] = NOTE_E3;
-  ret[65] = NOTE_G3;
-  ret[67] = NOTE_A3;
-  ret[69] = NOTE_C4;
-  ret[71] = NOTE_D4;
-  ret[72] = NOTE_E4;
-  ret[74] = NOTE_G4;
-  ret[76] = NOTE_A4;
-  ret[77] = NOTE_C5;
-  ret[79] = NOTE_D5;
-  ret[81] = NOTE_E5;
-  ret[83] = NOTE_G5;
-  ret[84] = NOTE_A5;
-  ret[86] = NOTE_C6;
-  ret[88] = NOTE_D6;
-  ret[90] = NOTE_E6;
-  ret[91] = NOTE_G6;
-  ret[93] = NOTE_A6;
-  ret[95] = NOTE_C7;
-  ret[96] = NOTE_D7;
-  ret[98] = NOTE_E7;
-  ret[100] = NOTE_G7;
-  ret[101] = NOTE_A7;
-  ret[103] = NOTE_C8;
-  ret[105] = NOTE_D8;
-  ret[107] = NOTE_E8;
-  ret[108] = NOTE_G8;
-  ret[110] = NOTE_A8;
-  ret[112] = NOTE_C8 * 2;  //higher than MIDI's usual range, doubling the frequency raises the note by an octave
-  ret[113] = NOTE_D8 * 2;
-  ret[115] = NOTE_E8 * 2;
-  ret[117] = NOTE_G8 * 2;
-  ret[119] = NOTE_A8 * 2;
-  ret[120] = NOTE_C8 * 4; //another octave higher
-  ret[122] = NOTE_D8 * 4;
-  ret[124] = NOTE_E8 * 4;
-  ret[125] = NOTE_G8 * 4;
-  ret[127] = NOTE_A8 * 4;
-
-  //black keys
-  ret[1] = NOTE_G_1;
-  ret[3] = NOTE_A_1;
-  ret[6] = NOTE_B_1;
-  ret[8] = NOTE_D_1;
-  ret[10] = NOTE_E_1;
-  ret[13] = NOTE_G_1;
-  ret[15] = NOTE_A_1;
-  ret[18] = NOTE_B_1;
-  ret[20] = NOTE_D0;
-  ret[22] = NOTE_E0;
-  ret[25] = NOTE_G0;
-  ret[27] = NOTE_A0;
-  ret[30] = NOTE_B0;
-  ret[32] = NOTE_D1;
-  ret[34] = NOTE_E1;
-  ret[37] = NOTE_G1;
-  ret[39] = NOTE_A1;
-  ret[42] = NOTE_B1;
-  ret[44] = NOTE_D2;
-  ret[46] = NOTE_E2;
-  ret[49] = NOTE_G2;
-  ret[51] = NOTE_A2;
-  ret[54] = NOTE_B2;
-  ret[56] = NOTE_D3;
-  ret[58] = NOTE_E3;
-  ret[61] = NOTE_G3; // Middle C#
-  ret[63] = NOTE_A3;
-  ret[66] = NOTE_B3;
-  ret[68] = NOTE_D4;
-  ret[70] = NOTE_E4;
-  ret[73] = NOTE_G4;
-  ret[75] = NOTE_A4;
-  ret[78] = NOTE_B4;
-  ret[80] = NOTE_D5;
-  ret[82] = NOTE_E5;
-  ret[85] = NOTE_G5;
-  ret[87] = NOTE_A5;
-  ret[90] = NOTE_B5;
-  ret[92] = NOTE_D6;
-  ret[94] = NOTE_E6;
-  ret[97] = NOTE_G6;
-  ret[99] = NOTE_A6;
-  ret[102] = NOTE_B6;
-  ret[104] = NOTE_D7;
-  ret[106] = NOTE_E7;
-  ret[109] = NOTE_G7;
-  ret[111] = NOTE_A7;
-  ret[114] = NOTE_B7;
-  ret[116] = NOTE_E8;
-  ret[118] = NOTE_D8;
-  ret[121] = NOTE_G8;
-  ret[123] = NOTE_A8;
-  ret[126] = NOTE_B8;
-  
 }
 
 /*
