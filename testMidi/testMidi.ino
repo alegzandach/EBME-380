@@ -5,23 +5,21 @@
 #define STATE_NO_NOTE 0
 #define STATE_NOTE_ON 1
 #define STATE_PLAYING 2
-#define STATE_TURNING_OFF 3
 
 //byte commandByte;
 //byte noteByte;
 //byte velocityByte;
 byte command;
-int curNote;
+boolean isPlaying;
 int newPitches[128];
 int state;
-int freq;
 byte readByte;
 byte channel;
 
 void setup(){
   Serial1.begin(31250);  // MIDI sends data at 31250 bps, Serial 1 receives signal on RX1 (pin 19 on Due)
   Serial.begin(9600);
-
+  
   newPitches[0] = NOTE_C_2 / 4;  //dividing a frequency by 2 lowers a pitch by an octave; this pitch is C_4
   newPitches[2] = NOTE_D_2 / 4;
   newPitches[4] = NOTE_E_2 / 4;
@@ -152,9 +150,9 @@ void setup(){
   newPitches[121] = NOTE_G8;
   newPitches[123] = NOTE_A8;
   newPitches[126] = NOTE_B8;
-  
+
+
   state = STATE_NO_NOTE;
-  curNote = -1;
 
   Serial.println("Hello World!");
 
@@ -162,18 +160,13 @@ void setup(){
 }
 
 void loop() {
-  checkMIDI();
-}
-
-void checkMIDI(){
-  
   if (Serial1.available() > 0){
 
     readByte = Serial1.read();
 
     if(readByte > 0) {
-      Serial.print("Read: ");
-      Serial.println(readByte, BIN);
+      //Serial.print("Read: ");
+      //Serial.println(readByte, BIN);
     }
 
     if(readByte == 0xf8) {
@@ -184,121 +177,32 @@ void checkMIDI(){
       // if there not a note playing, then this could be a command byte
       command = readByte & B11110000;
       channel = readByte & B00001111;
+      if(readByte > 0) {
+       //erial.print("Command: ");
+        //Serial.println(command, BIN);
+        //Serial.print("Channel: ");
+        //Serial.println(channel, BIN);
+      }
       if (command == B10010000) { //on
         state = STATE_NOTE_ON;
-      } else if (command == 128) { //off
+      } else if (command == B10000000) { //off
         Serial.println("Stopping");
-        state = STATE_TURNING_OFF;
       }
       
     } else if (state == STATE_NOTE_ON) {
       Serial.print("Note: ");
       Serial.println(readByte);
-      if (readByte < 128 && readByte > -1) {
-        freq = newPitches[readByte];
-        tone(OUT_PIN, freq, MAX_DURATION);
-        curNote = readByte;
-        Serial.print("Playing Frequency: ");
-        Serial.println(freq);
-      } else {
-        Serial.println("Bad Note, not playing.");
-      }
+      int freq = newPitches[readByte];
+      Serial.print("Playing: ");
+      Serial.print(freq);
+      Serial.print(" Hz\n");
       state = STATE_PLAYING;
       
-    }else if (state == STATE_PLAYING) {
+    } else if (state == STATE_PLAYING) {
       //ignore velocity for now
       Serial.print("Velocity: ");
-      Serial.println(command, BIN);
+      Serial.println(readByte, BIN);
       state = STATE_NO_NOTE;
-    } else if( state == STATE_TURNING_OFF) {
-      // turn off the note if it is the current one
-      if (readByte == curNote) {
-        noTone(OUT_PIN);
-        curNote = -1;
-        state = STATE_PLAYING;
-      } else {
-        state = STATE_NO_NOTE;
-      }
     }
   }
 }
-
-/*
-Tone generator
-Since it turns out the Due does not have an implementation of tone() or noTone()
-v1  use timer, and toggle any digital pin in ISR
-   funky duration from arduino version
-   TODO use FindMckDivisor?
-   timer selected will preclude using associated pins for PWM etc.
-    could also do timer/pwm hardware toggle where caller controls duration
-*/
-
-
-// timers TC0 TC1 TC2   channels 0-2 ids 0-2  3-5  6-8     AB 0 1
-// use TC1 channel 0
-#define TONE_TIMER TC1
-#define TONE_CHNL 0
-#define TONE_IRQ TC3_IRQn
-
-// TIMER_CLOCK4   84MHz/128 with 16 bit counter give 10 Hz to 656KHz
-//  piano 27Hz to 4KHz
-
-static uint8_t pinEnabled[PINS_COUNT];
-static uint8_t TCChanEnabled = 0;
-static boolean pin_state = false ;
-static Tc *chTC = TONE_TIMER;
-static uint32_t chNo = TONE_CHNL;
-
-volatile static int32_t toggle_count;
-static uint32_t tone_pin;
-
-// frequency (in hertz) and duration (in milliseconds).
-
-void tone(uint32_t ulPin, uint32_t frequency, int32_t duration)
-{
-    const uint32_t rc = VARIANT_MCK / 256 / frequency;
-    tone_pin = ulPin;
-    toggle_count = 0;  // strange  wipe out previous duration
-    if (duration > 0 ) toggle_count = 2 * frequency * duration / 1000;
-    else toggle_count = -1;
-
-    if (!TCChanEnabled) {
-      pmc_set_writeprotect(false);
-      pmc_enable_periph_clk((uint32_t)TONE_IRQ);
-      TC_Configure(chTC, chNo,
-        TC_CMR_TCCLKS_TIMER_CLOCK4 |
-        TC_CMR_WAVE |         // Waveform mode
-        TC_CMR_WAVSEL_UP_RC ); // Counter running up and reset when equals to RC
-  
-      chTC->TC_CHANNEL[chNo].TC_IER=TC_IER_CPCS;  // RC compare interrupt
-      chTC->TC_CHANNEL[chNo].TC_IDR=~TC_IER_CPCS;
-      NVIC_EnableIRQ(TONE_IRQ);
-                         TCChanEnabled = 1;
-    }
-    if (!pinEnabled[ulPin]) {
-      pinMode(ulPin, OUTPUT);
-      pinEnabled[ulPin] = 1;
-    }
-    TC_Stop(chTC, chNo);
-                TC_SetRC(chTC, chNo, rc);    // set frequency
-    TC_Start(chTC, chNo);
-}
-
-void noTone(uint32_t ulPin)
-{
-  TC_Stop(chTC, chNo);  // stop timer
-  digitalWrite(ulPin,LOW);  // no signal on pin
-}
-
-// timer ISR  TC1 ch 0
-void TC3_Handler ( void ) {
-  TC_GetStatus(TC1, 0);
-  if (toggle_count != 0){
-    // toggle pin  TODO  better
-    digitalWrite(tone_pin,pin_state= !pin_state);
-    if (toggle_count > 0) toggle_count--;
-  } else {
-    noTone(tone_pin);
-  }
-}
-
